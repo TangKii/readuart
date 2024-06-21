@@ -21,12 +21,13 @@ int main(int argc, char *argv[]) {
     int startIdx = 0; // 开始模式中已匹配的字节数
     DWORD idle_time_cnt = 0; // 上次接收到数据的时间戳
     int opt;
-    int baudRate = 1500000;
+    int baudRate = 500000;
     char *portName = "COM3";
+    char *output_name = "framebuff";
     int continuous_flag = 0;
 
     // 解析命令行参数
-    while ((opt = getopt(argc, argv, "b:p:c")) != -1) {
+    while ((opt = getopt(argc, argv, "b:p:co:")) != -1) {
         switch (opt) {
             case 'b':
                 baudRate = atoi(optarg);
@@ -34,11 +35,14 @@ int main(int argc, char *argv[]) {
             case 'p':
                 portName = optarg;
                 break;
+            case 'o':
+                output_name = optarg;
+                break;
             case 'c':
                 continuous_flag = 1;
                 break;
             default:
-                fprintf(stderr, "Usage: %s [-b] <baud rate> [-p] <port name> [-c]\n", argv[0]);
+                fprintf(stderr, "Usage: %s [-b] <baud rate> [-p] <port name> [-c] [-o] <output file name>\n", argv[0]);
                 return 1;
         }
     }
@@ -47,8 +51,8 @@ int main(int argc, char *argv[]) {
     hSerial = CreateFile(portName, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL);
     if (hSerial == INVALID_HANDLE_VALUE) {
         fprintf(stderr, "Error opening serial port\n");
-        fprintf(stderr, "Usage: %s [-b] <baud rate> [-p] <port name> [-c], use -c to read frambuff data in continuous mode\n", argv[0]);
-        fprintf(stderr, "default baud rate:1500000, defaul port:COM3\n");
+        fprintf(stderr, "Usage: %s [-b] <baud rate> [-p] <port name> [-o] <output file name>\n", argv[0]);
+        fprintf(stderr, "default baud rate:500000, defaul port:COM3\n");
         return 1;
     }
     else {
@@ -106,6 +110,8 @@ int main(int argc, char *argv[]) {
                         startIdx++;
                         if (startIdx == START_PATTERN_LEN) {
                             // 完全匹配开始模式，开始记录数据
+                            char fileName[100];
+
                             recording = 1;
                             startIdx = 0;
                             bytesTotalcnt = 8;
@@ -117,15 +123,16 @@ int main(int argc, char *argv[]) {
                                 char timeBuffer[80];
                                 time(&rawtime);
                                 timeinfo = localtime(&rawtime);
-                                strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d_%H-%M-%S", timeinfo);
-                                char fileName[100];
-                                sprintf(fileName, "serial_data_%s.bin", timeBuffer);
-
-                                file = fopen(fileName, "wb");
+                                strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d-%H-%M-%S", timeinfo);
+                                
+                                sprintf(fileName, "%s_%s.bin", output_name, timeBuffer);                                
                             }
                             else {
-                                file = fopen("framebuff", "wb");
+                                sprintf(fileName, "%s", output_name);
                             }
+
+                            file = fopen(fileName, "wb");
+
                             if (file == NULL) {
                                 fprintf(stderr, "Error opening file\n");
                                 CloseHandle(hSerial);
@@ -134,7 +141,7 @@ int main(int argc, char *argv[]) {
                             fwrite(startPattern, sizeof(char), START_PATTERN_LEN, file);
                             //fflush(file); // 确保数据写入文件
 
-                            printf("\nstart to save framebuff data\n");
+                            printf("\nstart to save framebuff in %s\n", fileName);
                         }
                     } else {
                         startIdx = 0; // 重置开始模式匹配索引
